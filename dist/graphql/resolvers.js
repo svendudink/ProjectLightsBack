@@ -9,24 +9,28 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.graphqlResolver = void 0;
+exports.graphqlResolver = exports.availableBulbIdListFilter = void 0;
 const SendHandler_1 = require("../ADB/SendHandler");
 const SendHandler_2 = require("../ADB/SendHandler");
 const SendHandler_3 = require("../ADB/SendHandler");
 const __1 = require("..");
 const textConvert_1 = require("../Helper/textConvert");
+const mapEffects_1 = require("../Helper/mapEffects");
 let returnTable = [];
 const MapLamps = function ({ SetMap }) {
-    console.log("firstcheckin", SetMap.request);
     return new Promise((resolve, reject) => {
         SetMap.mapName = (0, textConvert_1.textConvert)(SetMap.mapName);
-        if (SetMap.request === "newMap") {
-            __1.db.run(`CREATE TABLE ${SetMap.mapName} (id text UNIQUE, lat text,lng text, bulbId text UNIQUE)`, (err, table) => {
+        if (SetMap.request === "verticalScan" ||
+            SetMap.request === "horizontalScan" ||
+            SetMap.request === "deleteActive" ||
+            SetMap.request === "addLampBeforeActive") {
+            resolve((0, mapEffects_1.lampActions)({ SetMap }));
+        }
+        else if (SetMap.request === "newMap") {
+            __1.db.run(`CREATE TABLE ${SetMap.mapName} (id text UNIQUE, lat text,lng text, bulbId text UNIQUE, key text UNIQUE)`, (err, table) => {
                 if (err) {
                     reject(err);
-                    console.log(err);
                 }
-                console.log(table);
                 resolve({
                     eventList: JSON.stringify(table),
                 });
@@ -34,17 +38,15 @@ const MapLamps = function ({ SetMap }) {
         }
         else if (SetMap.request === "load") {
             // Load map pins
-            __1.db.all(`SELECT * FROM ${SetMap.mapName}`, (err, table) => {
+            __1.db.all(`SELECT * FROM ${SetMap.mapName} ORDER BY id + 0 ASC`, (err, table) => {
                 if (err) {
                     reject(err);
-                    console.log(err);
                 }
                 resolve({
-                    bulbIdList: JSON.stringify(availableBulbIdListFilter(SendHandler_3.l, table)),
+                    bulbIdList: JSON.stringify((0, exports.availableBulbIdListFilter)(SendHandler_3.l, table)),
                     mapArray: JSON.stringify(table),
-                    availableBulbIdList: availableBulbIdListFilter(SendHandler_3.l, table),
+                    availableBulbIdList: (0, exports.availableBulbIdListFilter)(SendHandler_3.l, table),
                 });
-                console.log("table", table);
             });
         }
         //end of load map pins
@@ -52,7 +54,6 @@ const MapLamps = function ({ SetMap }) {
             __1.db.run(`UPDATE ${SetMap.mapName} SET lat = ?, lng = ? WHERE id = ?`, [`${SetMap.lat}`, `${SetMap.lng}`, `${SetMap.bulbNumber}`], (err, table) => {
                 if (err) {
                     reject(err);
-                    console.log(err);
                 }
                 resolve({ mapArray: null });
             });
@@ -68,12 +69,16 @@ const MapLamps = function ({ SetMap }) {
         }
         else if (SetMap.request === "addLamp") {
             console.log("addLamp", SetMap.request, SetMap.bulbNumber, SetMap.lat, SetMap.lng, SetMap.mapName);
-            __1.db.run(`INSERT INTO ${SetMap.mapName} (id ,lat, lng) VALUES (?,?,?)`, [`${SetMap.bulbNumber}`, `${SetMap.lat}`, `${SetMap.lng}`], (err, table) => {
+            __1.db.run(`INSERT INTO ${SetMap.mapName} (id ,lat, lng, key) VALUES (?,?,?,?)`, [
+                `${SetMap.bulbNumber}`,
+                `${SetMap.lat}`,
+                `${SetMap.lng}`,
+                Math.random(),
+            ], (err, table) => {
                 if (err) {
                     reject(err);
                     console.log(err);
                 }
-                console.log(table);
                 resolve({
                     bulbIdList: JSON.stringify(SendHandler_3.l),
                     eventList: JSON.stringify(table),
@@ -98,7 +103,6 @@ const MapLamps = function ({ SetMap }) {
                     reject(err);
                     console.log(err);
                 }
-                console.log(table);
                 resolve({
                     eventList: JSON.stringify(table),
                 });
@@ -115,27 +119,21 @@ const MapLamps = function ({ SetMap }) {
 //   console.log(temp);
 // };
 const availableBulbIdListFilter = (fullList, mapArray) => {
-    console.log("eregfgf", fullList, mapArray);
     let adjustedList = JSON.parse(JSON.stringify(fullList));
     mapArray.forEach((element) => {
         if (element.bulbId) {
-            console.log(element.bulbId);
             delete adjustedList[element.bulbId];
         }
     });
-    console.log("view", adjustedList);
     return adjustedList;
 };
+exports.availableBulbIdListFilter = availableBulbIdListFilter;
 const ControlDevice = function ({ SetValues }) {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log(SetValues.sendToAndroid);
-        console.log(SetValues.createLightFile);
         if (SetValues.sendToAndroid === "true") {
-            console.log("valcheck");
             (0, SendHandler_1.RebootToDownload)();
         }
         if (SetValues.readFileFromAndroid === "true") {
-            console.log("valcheck");
             (0, SendHandler_1.readFileFromAndroid)();
         }
         if (SetValues.createLightFile === "true") {
@@ -146,14 +144,12 @@ const ControlDevice = function ({ SetValues }) {
                         table.forEach((element) => {
                             if (element.bulbId) {
                                 bulbArray.push(SendHandler_3.l[element.bulbId]);
-                                console.log("tft", bulbArray);
                             }
                         });
                         resolve(table);
                     });
                 });
                 let waitingBulbArray = yield promise;
-                console.log("testing", bulbArray);
                 (0, SendHandler_2.createFile)(SetValues.bulbMovement, SetValues.bulbColours, bulbArray);
                 return bulbArray;
             });

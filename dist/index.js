@@ -23,9 +23,15 @@ const db = new sqlite3.Database("db.sqlite", (err) => {
     }
 });
 exports.db = db;
+// export async function db() {
+//   return open({
+//     filename: "db.sqlite",
+//     driver: sqlite3.Database,
+//   });
+// }
 // Cors
 const corsOptions = {
-    origin: "https://bottleluminousback.herokuapp.com",
+    origin: "http://localhost:3000",
     credentials: true,
 };
 app.use((0, cors_1.default)(corsOptions));
